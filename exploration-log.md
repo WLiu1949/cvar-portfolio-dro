@@ -102,6 +102,47 @@
 
 ---
 
+## 阶段六：环境修复与首次成功运行（2026-05-15，约 6 轮）
+
+### 做了什么
+
+定位 Gurobi 许可证冲突的根因：Gurobi.jl 默认走 JLL artifact 拉取 v13 二进制包，忽略本地 v12.0.3 安装。即使 `GRB_LICENSE_FILE` 正确，`deps.jl` 不指向本地库就无法创建 Env。
+
+修复方法：`GUROBI_JL_USE_GUROBI_JLL=false` + `GUROBI_HOME=/Library/gurobi1203/macos_universal2` + `Pkg.build("Gurobi")`，三变量缺一不可。
+
+代码层面的 bug：五个 Julia 模块全部缺少 `export` 语句，`using .Module` 无法引入函数名，导致 `UndefVarError`。补全后一遍跑通。
+
+数值结果：nominal CVaR₀.₉ = 0.0595，S_TV = 0.7488，S_bud = 0.0268。三条 frontier 各 16 个 ε 点共 48 次 Gurobi 调用均求解成功。Budgeted frontier 敏感性下降最显著。
+
+### 经验固化
+
+创建了两个 skill 文件用于后续项目复用：
+- `julia-gurobi-debug` — Julia/Gurobi 项目调试清单（许可证 → 库路径 → 模块导出 → 求解器状态）
+- `push-github` — 国内网络环境 GitHub 推送链路（web 认证 → HTTPS → SSH 回退）
+
+同时在 `~/.claude/CLAUDE.md` 中记录了 Gurobi 三个必需环境变量。
+
+---
+
+## 阶段七：GitHub 上线（2026-05-15，约 8 轮）
+
+### 做了什么
+
+将项目推送到 https://github.com/WLiu1949/cvar-portfolio-dro。
+
+### 踩坑清单
+
+1. `gh auth login` web 模式被墙 → 手工生成 Personal Access Token，粘贴方式认证
+2. Token 缺 `read:org` scope → 编辑补全
+3. HTTPS HTTP/2 framing error → 换 HTTP/1.1 仍 empty reply
+4. 换 SSH 协议 → 使用已有 ed25519 key，公钥上传 GitHub Settings → 推送成功
+
+### 决策点
+
+这条推送链路在国内网络下是标准操作流程，已固化为 `push-github` skill。
+
+---
+
 ## 阶段五：思维链与决策树总结
 
 ```

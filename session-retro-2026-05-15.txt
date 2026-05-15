@@ -1,24 +1,33 @@
 CVaR Portfolio DRO — 会话复盘 (2026-05-15)
 ==============================================
 
-1. 新规律/模式
----------------
-Gurobi.jl 默认走 JLL artifact 拉取二进制（当前为 v13），忽略本地安装版本。
-即使 GRB_LICENSE_FILE 指向有效许可，若许可版本与 JLL 版本不匹配，无法创建 Env。
-修复方法：设置 GUROBI_JL_USE_GUROBI_JLL=false + GUROBI_HOME=/path/to/gurobi，
-然后 Pkg.build("Gurobi") 重建 deps.jl 指向本地 libgurobi120.dylib。
+一、Gurobi JLL 版本冲突修复
+--------------------------
+问题：Gurobi.jl 默认走 JLL artifact 拉取 v13 二进制，忽略本地 v12.0.3 安装。
+即使 GRB_LICENSE_FILE 指向有效许可，许可版本与 JLL 版本不匹配即拒绝创建 Env。
+修复：GUROBI_JL_USE_GUROBI_JLL=false + GUROBI_HOME + Pkg.build("Gurobi")，
+三变量需同时设置。已写入 CLAUDE.md 防止后续会话重犯。
 
-2. 重复流程
+二、Julia 模块导出
+------------------
+五个模块全部缺 export 语句，using .Module 只能引入模块名无法引入函数名，
+导致 UndefVarError。补完后项目一遍跑通，16 个 ε 点 × 3 条 frontier 共计
+48 次 Gurobi 调用均求解成功。代码层面无其他 bug。
+
+三、GitHub 推送链路
+-------------------
+环境：MacBook M4 + 国内网络。
+路径：brew install gh → git init/commit → gh auth login → gh repo create → push。
+踩坑清单：
+  (1) gh auth web 浏览器模式被墙，换 paste token 方式。
+  (2) token 缺 read:org scope，编辑补上。
+  (3) HTTPS push HTTP/2 握手失败，换 git config http.version HTTP/1.1 仍 empty reply。
+  (4) 换 SSH，已有一对 ed25519 key，公钥上传 GitHub → 推送成功。
+最终：https://github.com/WLiu1949/cvar-portfolio-dro
+
+四、数值结果
 ------------
-Julia 项目调试三件套：(a) 求解器环境确认（许可证+本地库加载路径），
-(b) 模块导出声明完整性检查（export 遗漏是最容易踩的坑），
-(c) 数据加载-求解-绘图的端到端验证。
-
-3. 可复用片段
----------------
-- DataLoader.load_returns()        data_loader.jl  自动下载+解析 Fama-French CSV
-- TVFrontier.solve_dro()           tv_frontier.jl   TV 模糊集 LP（JuMP + Gurobi）
-- BudgetedFrontier.solve_dro()     budgeted_frontier.jl  Budgeted 模糊集 LP
-- Chi2Frontier.solve_dro()         chi2_frontier.jl  Modified chi2 SOCP
-- SensitivityMetrics.all_sensitivities()  sensitivity_metrics.jl  Table 4.1 WCS
-- CvarUtils.cvar_risk()            cvar_utils.jl    经验 CVaR 计算
+nominal CVaR₀.₉ = 0.0595，S_TV = 0.7488，S_bud = 0.0268。
+三条 frontier 均随 ε 增大单调下降，方向正确。
+Budgeted frontier 敏感性下降最显著（S_TV 0.7488 → 0.5719）。
+待做：与论文 Figure 5.8 对比验证曲线形状和数值。
